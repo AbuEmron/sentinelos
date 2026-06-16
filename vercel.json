@@ -1,0 +1,52 @@
+# SENTINEL OS — MVP
+
+The operating system for private security companies. This is a working MVP slice demonstrating the three core surfaces from the blueprint:
+
+- **Operations Command** — live post coverage, KPIs (coverage, OT exposure, billing), and the SENTINEL AI Risk Radar (turnover, churn, expiring-cert predictions, each with a recommended action).
+- **Officer App** — the retention wedge: rank/points, tonight's post, tour progress, instant pay, recognition badges, certifications, and one-tap SOS.
+- **Client Portal** — real-time on-site visibility, SLA/ROI stats, an incident-transparency feed, and a live incident-reporting form that writes straight to the database.
+
+## Stack
+
+- **Frontend:** dependency-free HTML/CSS/JS PWA (offline-first via service worker). No build step.
+- **Backend:** Supabase (PostgreSQL + Row-Level Security). Browser talks to Supabase via `@supabase/supabase-js` (ESM CDN) using the **publishable** key.
+- **Hosting:** Vercel (static).
+
+## Configuration
+
+Edit the `CFG` block at the top of the `<script type="module">` in `index.html`:
+
+```js
+const CFG = {
+  url: 'https://<your-project>.supabase.co',
+  key: 'sb_publishable_...',   // publishable (anon) key — safe for the browser
+  org: '00000000-0000-0000-0000-0000000000aa'  // demo tenant
+};
+```
+
+The app falls back to embedded demo data if the database is unreachable, so the deployed page always renders.
+
+## Database
+
+- `supabase/schema.sql` — full multi-tenant schema (organizations, officers, certifications, clients, sites, contracts, shifts, timesheets, tours, incidents, evidence, leads, invoices, achievements, audit events) with RLS enabled.
+- `supabase/seed.sql` — demo tenant (*Vanguard Protective Services*) with officers, clients, sites, shifts, incidents, certs, and achievements.
+
+Apply with the Supabase SQL editor or CLI:
+
+```bash
+supabase db push          # or paste schema.sql then seed.sql into the SQL editor
+```
+
+> **Security note:** the demo uses permissive RLS policies (`anon` can read all rows and insert incidents) so the public demo works without auth. Before production, replace `demo_read` with org-scoped policies keyed on `auth.jwt()->>'org_id'` and add Supabase Auth.
+
+## Deploy to Vercel
+
+```bash
+vercel deploy --prod
+```
+
+No framework, no install — Vercel serves the static files directly.
+
+## Roadmap
+
+See the SENTINEL OS Blueprint (Phase 8) for the MVP → V2 → V3 → Enterprise sequence with per-feature scoring.
