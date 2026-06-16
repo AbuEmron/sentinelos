@@ -152,10 +152,12 @@ tr:hover td{background:#0f1830}
   <div class="tag2">Security Operations Center</div>
   <label>Email</label><input id="a-email" type="email" value="demo@sentinel-os.app" autocomplete="username" />
   <label>Password</label><input id="a-pass" type="password" value="SentinelDemo2026!" autocomplete="current-password" />
+  <label>Account type <span style="color:var(--muted2)">(new sign-ups)</span></label>
+  <select id="a-role" style="width:100%;background:#0c1424;border:1px solid var(--line2);border-radius:10px;padding:12px;color:var(--txt);font-size:15px"><option value="admin">Admin / Supervisor — full access</option><option value="officer">Officer — officer app only</option><option value="client">Client — client portal only</option></select>
   <div class="err" id="a-err"></div>
   <button class="btn btn-pri" style="width:100%;margin-top:14px" onclick="signIn()">Sign in</button>
   <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="signUp()">Create account</button>
-  <div class="demo">🔐 <b>Demo:</b> demo@sentinel-os.app · SentinelDemo2026!<br>Or create your own account — you'll get instant access.</div>
+  <div class="demo">🔐 <b>Demo logins</b> · password <b>SentinelDemo2026!</b><br>Admin → demo@sentinel-os.app<br>Officer → officer@sentinel-os.app<br>Client → client@sentinel-os.app</div>
 </div></div>
 <div id="toast" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f1830;border:1px solid var(--line2);color:#fff;padding:13px 20px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);font-weight:600;font-size:13px;opacity:0;transition:.35s;z-index:400"></div>
 
@@ -188,9 +190,21 @@ const NAV=[['OPERATIONS'],
 ['INTELLIGENCE'],['ai','AI Insights','🤖'],['benchmark','Benchmarking','🏆'],
 ['ADMIN'],['automations','Automations','⚡'],['audit','Audit Log','🧾'],['settings','Settings','⚙'],['pricing','Pricing','💳']];
 const TITLES={dashboard:['Dashboard',"Real-time security operations overview."],scheduling:['Scheduling & Dispatch','Build the schedule, assign officers, fill open posts.'],incidents:['Incidents','Full incident lifecycle and evidence.'],people:['People','Officers, ranks, certifications, AI risk.'],locations:['Locations','Clients, sites and contracts.'],time:['Time & Pay','Timesheets, overtime, payroll feed.'],fleet:['Fleet & Equipment','Vehicles and gear assignment.'],crm:['CRM Pipeline','Leads, proposals and contracts.'],reports:['Reports','Operational and financial reporting.'],client:['Client Portal','What your clients see.'],officer:['Officer App','The experience built for officers.'],ai:['AI Insights','Predictions that move money.'],benchmark:['Benchmarking','How you compare to the industry.'],automations:['Automations','Rules that run your operation.'],audit:['Audit Log','Immutable record of every action.'],settings:['Settings','Organization, security and API.'],pricing:['Plans & Pricing','Per officer, per month.']};
-function buildNav(){$('#nav').innerHTML=NAV.map(n=>n.length===1?`<div class="grp">${n[0]}</div>`:`<a data-v="${n[0]}" onclick="go('${n[0]}')"><span class="ic">${n[2]}</span>${n[1]}${n[0]==='incidents'?'<span class="badge" id="nav-inc"></span>':''}</a>`).join('');}
-window.go=v=>{CUR=v;$$('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===v));$('#tb-title').textContent=TITLES[v][0];$('#tb-sub').textContent=TITLES[v][1];RENDER[v]&&RENDER[v]();window.scrollTo(0,0);};
-let CUR='dashboard';
+let ROLE='admin',CUR='dashboard';
+const ADMINISH=['owner','admin','ops_manager','supervisor'];
+const ROLEVIEWS={client:['client'],officer:['officer']};
+const allowedViews=()=>ADMINISH.includes(ROLE)?null:(ROLEVIEWS[ROLE]||['dashboard']);
+const homeView=()=>ROLE==='client'?'client':ROLE==='officer'?'officer':'dashboard';
+function buildNav(){
+  const a=allowedViews();let html='',i=0;
+  while(i<NAV.length){const n=NAV[i];
+    if(n.length===1){let j=i+1,items=[];while(j<NAV.length&&NAV[j].length>1){if(!a||a.includes(NAV[j][0]))items.push(NAV[j]);j++;}
+      if(items.length)html+=`<div class="grp">${n[0]}</div>`+items.map(m=>`<a data-v="${m[0]}" onclick="go('${m[0]}')"><span class="ic">${m[2]}</span>${m[1]}${m[0]==='incidents'?'<span class="badge" id="nav-inc"></span>':''}</a>`).join('');
+      i=j;
+    } else i++;}
+  $('#nav').innerHTML=html;
+}
+window.go=v=>{const a=allowedViews();if(a&&!a.includes(v))v=homeView();CUR=v;$$('#nav a').forEach(x=>x.classList.toggle('on',x.dataset.v===v));$('#tb-title').textContent=TITLES[v][0];$('#tb-sub').textContent=TITLES[v][1];RENDER[v]&&RENDER[v]();window.scrollTo(0,0);};
 
 /* ---------- data ---------- */
 let S={officers:[],clients:[],sites:[],contracts:[],incidents:[],certs:[],achievements:[],invoices:[],shifts:[],leads:[],equipment:[],vehicles:[],automations:[],events:[]};
@@ -441,12 +455,14 @@ RENDER.pricing=()=>{
 };
 
 /* ---------- auth ---------- */
+const ROLELABEL={owner:'Owner',admin:'Administrator',ops_manager:'Ops Manager',supervisor:'Supervisor',officer:'Officer',client:'Client'};
+async function fetchRole(uid){try{const{data}=await sb.from('memberships').select('role').eq('user_id',uid).limit(1);return(data&&data[0]&&data[0].role)||'admin';}catch(e){return 'admin';}}
 async function showApp(session){
   $('#auth').style.display=session?'none':'flex';
-  if(session){USER=session.user?.email||USER;const ini=USER.slice(0,2).toUpperCase();$('#u-av').textContent=ini;await load();}
+  if(session){USER=session.user?.email||USER;ROLE=await fetchRole(session.user.id);$('#u-av').textContent=USER.slice(0,2).toUpperCase();const nm=USER.split('@')[0];$('#u-nm').textContent=nm.charAt(0).toUpperCase()+nm.slice(1);const rl=document.querySelector('.userbox .rl');if(rl)rl.textContent=ROLELABEL[ROLE]||ROLE;buildNav();go(homeView());await load();}
 }
 window.signIn=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='Signing in…';const{data,error}=await sb.auth.signInWithPassword({email,password});if(error){$('#a-err').textContent=error.message;return;}$('#a-err').textContent='';await showApp(data.session);};
-window.signUp=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='';if(!email){$('#a-err').textContent='Enter an email';return;}if((password||'').length<6){$('#a-err').textContent='Password must be at least 6 characters';return;}const{data,error}=await sb.auth.signUp({email,password});if(error){$('#a-err').textContent=error.message;return;}let sess=data.session;if(!sess){const r=await sb.auth.signInWithPassword({email,password});if(r.error){$('#a-err').textContent='Account created — please sign in.';return;}sess=r.data.session;}toast('✓ Account created — welcome');await showApp(sess);};
+window.signUp=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='';if(!email){$('#a-err').textContent='Enter an email';return;}if((password||'').length<6){$('#a-err').textContent='Password must be at least 6 characters';return;}const role=($('#a-role')&&$('#a-role').value)||'admin';const{data,error}=await sb.auth.signUp({email,password,options:{data:{role}}});if(error){$('#a-err').textContent=error.message;return;}let sess=data.session;if(!sess){const r=await sb.auth.signInWithPassword({email,password});if(r.error){$('#a-err').textContent='Account created — please sign in.';return;}sess=r.data.session;}toast('✓ Account created — welcome');await showApp(sess);};
 window.signOut=async()=>{await sb.auth.signOut();$('#auth').style.display='flex';};
 $('#a-pass').addEventListener('keydown',e=>{if(e.key==='Enter')window.signIn();});
 
