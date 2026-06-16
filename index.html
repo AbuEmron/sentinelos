@@ -154,7 +154,8 @@ tr:hover td{background:#0f1830}
   <label>Password</label><input id="a-pass" type="password" value="SentinelDemo2026!" autocomplete="current-password" />
   <div class="err" id="a-err"></div>
   <button class="btn btn-pri" style="width:100%;margin-top:14px" onclick="signIn()">Sign in</button>
-  <div class="demo">🔐 <b>Demo:</b> demo@sentinel-os.app · SentinelDemo2026!</div>
+  <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="signUp()">Create account</button>
+  <div class="demo">🔐 <b>Demo:</b> demo@sentinel-os.app · SentinelDemo2026!<br>Or create your own account — you'll get instant access.</div>
 </div></div>
 <div id="toast" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f1830;border:1px solid var(--line2);color:#fff;padding:13px 20px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);font-weight:600;font-size:13px;opacity:0;transition:.35s;z-index:400"></div>
 
@@ -444,7 +445,8 @@ async function showApp(session){
   $('#auth').style.display=session?'none':'flex';
   if(session){USER=session.user?.email||USER;const ini=USER.slice(0,2).toUpperCase();$('#u-av').textContent=ini;await load();}
 }
-window.signIn=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='';const{data,error}=await sb.auth.signInWithPassword({email,password});if(error){$('#a-err').textContent=error.message;return;}await showApp(data.session);};
+window.signIn=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='Signing in…';const{data,error}=await sb.auth.signInWithPassword({email,password});if(error){$('#a-err').textContent=error.message;return;}$('#a-err').textContent='';await showApp(data.session);};
+window.signUp=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='';if(!email){$('#a-err').textContent='Enter an email';return;}if((password||'').length<6){$('#a-err').textContent='Password must be at least 6 characters';return;}const{data,error}=await sb.auth.signUp({email,password});if(error){$('#a-err').textContent=error.message;return;}let sess=data.session;if(!sess){const r=await sb.auth.signInWithPassword({email,password});if(r.error){$('#a-err').textContent='Account created — please sign in.';return;}sess=r.data.session;}toast('✓ Account created — welcome');await showApp(sess);};
 window.signOut=async()=>{await sb.auth.signOut();$('#auth').style.display='flex';};
 $('#a-pass').addEventListener('keydown',e=>{if(e.key==='Enter')window.signIn();});
 
