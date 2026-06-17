@@ -196,7 +196,12 @@ async function renderMap(){const el=document.getElementById('opsmap');if(!el)ret
     const offs=onpost.map(x=>oName(x.officer_id)).join(', ')||'—';
     const pop=`<div style="min-width:172px;font-size:12px"><b>${esc(s.name)}</b><br><span style="color:#888">${esc(clientOfSite(s.id)||'')}</span><br>On post: ${esc(offs)}<br>${open?`<span style="color:#d68910">${open} open post(s)</span><br>`:''}${inc.length?`<span style="color:#c0392b">${inc.length} active incident(s)</span>`:'<span style="color:#1e8449">No active incidents</span>'}</div>`;
     L.marker(pos,{icon}).addTo(MAP).bindPopup(pop);});
-  if(bounds.length>1)MAP.fitBounds(bounds,{padding:[40,40]});
+  // geofence circles around each site
+  sites.forEach(s=>{const inc=S.incidents.filter(i=>i.site_id===s.id&&i.status!=='resolved').length;const col=inc?'#F2545B':'#2F80ED';L.circle([+s.lat,+s.lng],{radius:175,color:col,weight:1,opacity:.5,fillColor:col,fillOpacity:.05}).addTo(MAP);});
+  // officer GPS breadcrumb trails + live position
+  const byOff={};(S.pings||[]).forEach(p=>{if(p.lat&&p.lng)(byOff[p.officer_id]=byOff[p.officer_id]||[]).push(p);});
+  Object.entries(byOff).forEach(([oid,arr])=>{arr.sort((a,b)=>new Date(a.ts)-new Date(b.ts));const line=arr.map(p=>[+p.lat,+p.lng]);if(line.length>1)L.polyline(line,{color:'#36C5F0',weight:2.5,opacity:.85,dashArray:'5 5'}).addTo(MAP);const last=line[line.length-1];if(last){const nm=oName(oid);const ini=(nm||'?').split(' ').map(w=>w[0]).join('').slice(0,2);const oi=L.divIcon({className:'',html:`<div style="width:22px;height:22px;border-radius:50%;background:#36C5F0;border:2px solid #0A0F1C;color:#06243a;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #36C5F0">${ini}</div>`,iconSize:[22,22],iconAnchor:[11,11]});L.marker(last,{icon:oi}).addTo(MAP).bindPopup(`<div style="font-size:12px"><b>${esc(nm)}</b><br>On patrol · ${arr.length} GPS pings<br>Last seen: ${tstr(arr[arr.length-1].ts)}</div>`);bounds.push(last);}});
+  if(bounds.length>1)MAP.fitBounds(bounds,{padding:[45,45]});
   setTimeout(()=>{try{MAP.invalidateSize();}catch(e){}},150);
 }
 
@@ -231,9 +236,9 @@ let LIVE=false;
 async function load(){
   try{
     const q=t=>sb.from(t).select('*').eq('org_id',CFG.org);
-    const r=await Promise.all([q('officers'),q('clients'),q('sites'),q('contracts'),sb.from('incidents').select('*').eq('org_id',CFG.org).order('occurred_at',{ascending:false}),q('certifications'),q('achievements'),q('invoices'),sb.from('shifts').select('*').eq('org_id',CFG.org).order('starts_at'),q('leads'),q('equipment'),q('vehicles'),q('automations'),sb.from('events').select('*').eq('org_id',CFG.org).order('ts',{ascending:false}).limit(50)]);
+    const r=await Promise.all([q('officers'),q('clients'),q('sites'),q('contracts'),sb.from('incidents').select('*').eq('org_id',CFG.org).order('occurred_at',{ascending:false}),q('certifications'),q('achievements'),q('invoices'),sb.from('shifts').select('*').eq('org_id',CFG.org).order('starts_at'),q('leads'),q('equipment'),q('vehicles'),q('automations'),sb.from('events').select('*').eq('org_id',CFG.org).order('ts',{ascending:false}).limit(50),sb.from('gps_pings').select('*').eq('org_id',CFG.org).order('ts')]);
     if(r[0].error)throw r[0].error;
-    const k=['officers','clients','sites','contracts','incidents','certs','achievements','invoices','shifts','leads','equipment','vehicles','automations','events'];
+    const k=['officers','clients','sites','contracts','incidents','certs','achievements','invoices','shifts','leads','equipment','vehicles','automations','events','pings'];
     S={};k.forEach((key,i)=>S[key]=r[i].data||[]);LIVE=true;
   }catch(e){console.warn('demo',e.message);S=JSON.parse(JSON.stringify(DEMO));LIVE=false;}
   if(LIVE&&ROLE==='client'){try{const d=await sb.rpc('get_directory');if(d.data&&d.data.length)S.officers=d.data;}catch(e){}}
