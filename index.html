@@ -188,8 +188,8 @@ const NAV=[['OPERATIONS'],
 ['REVENUE'],['crm','CRM Pipeline','📈'],['reports','Reports','📊'],['client','Client Portal','🏢'],
 ['WORKFORCE'],['officer','Officer App','🛡'],
 ['INTELLIGENCE'],['ai','AI Insights','🤖'],['benchmark','Benchmarking','🏆'],
-['ADMIN'],['automations','Automations','⚡'],['audit','Audit Log','🧾'],['settings','Settings','⚙'],['pricing','Pricing','💳']];
-const TITLES={dashboard:['Dashboard',"Real-time security operations overview."],scheduling:['Scheduling & Dispatch','Build the schedule, assign officers, fill open posts.'],incidents:['Incidents','Full incident lifecycle and evidence.'],people:['People','Officers, ranks, certifications, AI risk.'],locations:['Locations','Clients, sites and contracts.'],time:['Time & Pay','Timesheets, overtime, payroll feed.'],fleet:['Fleet & Equipment','Vehicles and gear assignment.'],crm:['CRM Pipeline','Leads, proposals and contracts.'],reports:['Reports','Operational and financial reporting.'],client:['Client Portal','What your clients see.'],officer:['Officer App','The experience built for officers.'],ai:['AI Insights','Predictions that move money.'],benchmark:['Benchmarking','How you compare to the industry.'],automations:['Automations','Rules that run your operation.'],audit:['Audit Log','Immutable record of every action.'],settings:['Settings','Organization, security and API.'],pricing:['Plans & Pricing','Per officer, per month.']};
+['ADMIN'],['team','Team & Roles','🧑'],['automations','Automations','⚡'],['audit','Audit Log','🧾'],['settings','Settings','⚙'],['pricing','Pricing','💳']];
+const TITLES={dashboard:['Dashboard',"Real-time security operations overview."],scheduling:['Scheduling & Dispatch','Build the schedule, assign officers, fill open posts.'],incidents:['Incidents','Full incident lifecycle and evidence.'],people:['People','Officers, ranks, certifications, AI risk.'],locations:['Locations','Clients, sites and contracts.'],time:['Time & Pay','Timesheets, overtime, payroll feed.'],fleet:['Fleet & Equipment','Vehicles and gear assignment.'],crm:['CRM Pipeline','Leads, proposals and contracts.'],reports:['Reports','Operational and financial reporting.'],client:['Client Portal','What your clients see.'],officer:['Officer App','The experience built for officers.'],ai:['AI Insights','Predictions that move money.'],benchmark:['Benchmarking','How you compare to the industry.'],team:['Team & Roles','Manage who can access what.'],automations:['Automations','Rules that run your operation.'],audit:['Audit Log','Immutable record of every action.'],settings:['Settings','Organization, security and API.'],pricing:['Plans & Pricing','Per officer, per month.']};
 let ROLE='admin',CUR='dashboard';
 const ADMINISH=['owner','admin','ops_manager','supervisor'];
 const ROLEVIEWS={client:['client'],officer:['officer']};
@@ -218,6 +218,7 @@ async function load(){
     const k=['officers','clients','sites','contracts','incidents','certs','achievements','invoices','shifts','leads','equipment','vehicles','automations','events'];
     S={};k.forEach((key,i)=>S[key]=r[i].data||[]);LIVE=true;
   }catch(e){console.warn('demo',e.message);S=JSON.parse(JSON.stringify(DEMO));LIVE=false;}
+  if(LIVE&&ROLE==='client'){try{const d=await sb.rpc('get_directory');if(d.data&&d.data.length)S.officers=d.data;}catch(e){}}
   RENDER[CUR]&&RENDER[CUR]();
 }
 const oName=id=>(S.officers.find(o=>o.id===id)||{}).full_name||'OPEN POST';
@@ -436,6 +437,16 @@ RENDER.audit=()=>{
   <div class="card">${head('Activity',true)}<div style="overflow-x:auto"><table><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead><tbody>${ev.map(e=>`<tr><td class="muted">${ago(e.ts)}</td><td>${esc(e.actor||'system')}</td><td><span class="tag ${e.action==='delete'?'b-red':e.action==='create'?'b-green':'b-blue'}">${esc(e.action)}</span></td><td>${esc(e.entity||'')}</td></tr>`).join('')}</tbody></table></div></div>`;
 };
 
+RENDER.team=async()=>{
+  C.innerHTML=`<div class="section-h"><h2>Team & Roles</h2><div class="sp"></div><span class="chip">Admins & supervisors only</span></div><div class="card"><div style="padding:18px" class="muted">Loading members…</div></div>`;
+  let members=[];try{const{data,error}=await sb.rpc('admin_list_members');if(error)throw error;members=data||[];}catch(e){C.querySelector('.card').innerHTML=`<div style="padding:18px" class="muted">Couldn't load members: ${esc(e.message)}</div>`;return;}
+  const roleOpts=[['admin','Admin'],['supervisor','Supervisor'],['ops_manager','Ops Manager'],['owner','Owner'],['officer','Officer'],['client','Client']];
+  const idOpts=u=>`<option value="">— link identity (optional) —</option>`+S.officers.map(o=>`<option value="o:${o.id}" ${u.officer_id===o.id?'selected':''}>Officer: ${esc(o.full_name)}</option>`).join('')+S.clients.map(c=>`<option value="c:${c.id}" ${u.client_id===c.id?'selected':''}>Client: ${esc(c.name)}</option>`).join('');
+  const ss='background:#0c1424;border:1px solid var(--line2);border-radius:8px;padding:7px;color:var(--txt);font-size:12.5px';
+  C.innerHTML=`<div class="section-h"><h2>Team & Roles</h2><div class="sp"></div><span class="chip">${members.length} members · admins & supervisors only</span></div>
+  <div class="card">${head('Accounts',true)}<div style="overflow-x:auto"><table><thead><tr><th>Email</th><th>Account type</th><th>Linked record</th><th></th></tr></thead><tbody>${members.map(u=>`<tr><td><b>${esc(u.email)}</b></td><td><select id="role-${u.user_id}" style="${ss}">${roleOpts.map(r=>`<option value="${r[0]}" ${u.role===r[0]?'selected':''}>${r[1]}</option>`).join('')}</select></td><td><select id="id-${u.user_id}" style="${ss}">${idOpts(u)}</select></td><td><button class="btn-sm" onclick="saveMember('${u.user_id}')">Save</button></td></tr>`).join('')}</tbody></table></div><div class="muted" style="padding:11px 17px">Change someone's account type if they signed up wrong. Link officers/clients to their record so they see the right data.</div></div>`;
+};
+window.saveMember=async(uid)=>{const role=$('#role-'+uid).value,sel=$('#id-'+uid).value;let po=null,pc=null;if(role==='officer'&&sel.indexOf('o:')===0)po=sel.slice(2);if(role==='client'&&sel.indexOf('c:')===0)pc=sel.slice(2);try{const{error}=await sb.rpc('admin_set_role',{target:uid,new_role:role,p_officer:po,p_client:pc});if(error)throw error;toast('✓ Account type updated');RENDER.team();}catch(e){toast('Error: '+e.message);}};
 RENDER.settings=()=>{
   C.innerHTML=`<div class="section-h"><h2>Settings</h2></div>
   <div class="row r-2"><div class="card">${head('Organization')}<div style="padding:6px 17px 17px"><div class="chip">Vanguard Protective Services</div><div class="chip">Plan: MVP</div><div class="chip">Region: us-east-2</div><div class="chip">Officers: ${S.officers.length}</div><div class="chip">Multi-tenant RLS: enabled</div></div></div>
