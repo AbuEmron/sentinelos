@@ -152,12 +152,10 @@ tr:hover td{background:#0f1830}
   <div class="tag2">Security Operations Center</div>
   <label>Email</label><input id="a-email" type="email" value="demo@sentinel-os.app" autocomplete="username" />
   <label>Password</label><input id="a-pass" type="password" value="SentinelDemo2026!" autocomplete="current-password" />
-  <label>Account type <span style="color:var(--muted2)">(new sign-ups)</span></label>
-  <select id="a-role" style="width:100%;background:#0c1424;border:1px solid var(--line2);border-radius:10px;padding:12px;color:var(--txt);font-size:15px"><option value="admin">Admin / Supervisor — full access</option><option value="officer">Officer — officer app only</option><option value="client">Client — client portal only</option></select>
   <div class="err" id="a-err"></div>
   <button class="btn btn-pri" style="width:100%;margin-top:14px" onclick="signIn()">Sign in</button>
   <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="signUp()">Create account</button>
-  <div class="demo">🔐 <b>Demo logins</b> · password <b>SentinelDemo2026!</b><br>Admin → demo@sentinel-os.app<br>Officer → officer@sentinel-os.app<br>Client → client@sentinel-os.app</div>
+  <div class="demo">🔐 <b>Demo logins</b> · password <b>SentinelDemo2026!</b><br>Admin → demo@sentinel-os.app<br>Officer → officer@sentinel-os.app<br>Client → client@sentinel-os.app<br><span style="color:var(--muted2)">Or create an account — you get your own private workspace.</span></div>
 </div></div>
 <div id="toast" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f1830;border:1px solid var(--line2);color:#fff;padding:13px 20px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);font-weight:600;font-size:13px;opacity:0;transition:.35s;z-index:400"></div>
 
@@ -491,13 +489,13 @@ RENDER.pricing=()=>{
 
 /* ---------- auth ---------- */
 const ROLELABEL={owner:'Owner',admin:'Administrator',ops_manager:'Ops Manager',supervisor:'Supervisor',officer:'Officer',client:'Client'};
-async function fetchRole(uid){try{const{data}=await sb.from('memberships').select('role').eq('user_id',uid).limit(1);return(data&&data[0]&&data[0].role)||'admin';}catch(e){return 'admin';}}
+async function fetchMembership(uid){try{const{data}=await sb.from('memberships').select('role,org_id').eq('user_id',uid).limit(1);if(data&&data[0])return data[0];}catch(e){}return{role:'admin',org_id:CFG.org};}
 async function showApp(session){
   $('#auth').style.display=session?'none':'flex';
-  if(session){USER=session.user?.email||USER;ROLE=await fetchRole(session.user.id);$('#u-av').textContent=USER.slice(0,2).toUpperCase();const nm=USER.split('@')[0];$('#u-nm').textContent=nm.charAt(0).toUpperCase()+nm.slice(1);const rl=document.querySelector('.userbox .rl');if(rl)rl.textContent=ROLELABEL[ROLE]||ROLE;buildNav();go(homeView());await load();}
+  if(session){USER=session.user?.email||USER;const m=await fetchMembership(session.user.id);ROLE=m.role||'admin';if(m.org_id)CFG.org=m.org_id;$('#u-av').textContent=USER.slice(0,2).toUpperCase();const nm=USER.split('@')[0];$('#u-nm').textContent=nm.charAt(0).toUpperCase()+nm.slice(1);const rl=document.querySelector('.userbox .rl');if(rl)rl.textContent=ROLELABEL[ROLE]||ROLE;buildNav();go(homeView());await load();}
 }
 window.signIn=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='Signing in…';const{data,error}=await sb.auth.signInWithPassword({email,password});if(error){$('#a-err').textContent=error.message;return;}$('#a-err').textContent='';await showApp(data.session);};
-window.signUp=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='';if(!email){$('#a-err').textContent='Enter an email';return;}if((password||'').length<6){$('#a-err').textContent='Password must be at least 6 characters';return;}const role=($('#a-role')&&$('#a-role').value)||'admin';const{data,error}=await sb.auth.signUp({email,password,options:{data:{role}}});if(error){$('#a-err').textContent=error.message;return;}let sess=data.session;if(!sess){const r=await sb.auth.signInWithPassword({email,password});if(r.error){$('#a-err').textContent='Account created — please sign in.';return;}sess=r.data.session;}toast('✓ Account created — welcome');await showApp(sess);};
+window.signUp=async()=>{const email=$('#a-email').value.trim(),password=$('#a-pass').value;$('#a-err').textContent='';if(!email){$('#a-err').textContent='Enter an email';return;}if((password||'').length<6){$('#a-err').textContent='Password must be at least 6 characters';return;}const{data,error}=await sb.auth.signUp({email,password});if(error){$('#a-err').textContent=error.message;return;}let sess=data.session;if(!sess){const r=await sb.auth.signInWithPassword({email,password});if(r.error){$('#a-err').textContent='Account created — please sign in.';return;}sess=r.data.session;}toast('✓ Account created — welcome');await showApp(sess);};
 window.signOut=async()=>{await sb.auth.signOut();$('#auth').style.display='flex';};
 $('#a-pass').addEventListener('keydown',e=>{if(e.key==='Enter')window.signIn();});
 
